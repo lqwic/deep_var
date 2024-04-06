@@ -3,13 +3,9 @@ import pandas as pd
 from scipy import stats
 from tqdm.auto import trange
 
-from gluonts.dataset.field_names import FieldName
 from gluonts.dataset.common import ListDataset
 from gluonts.mx.model import deepar
 from gluonts.mx.trainer import Trainer
-from gluonts.evaluation.backtest import make_evaluation_predictions
-from gluonts.evaluation import Evaluator
-from gluonts.model.predictor import Predictor
 
 
 class BaseModel:
@@ -38,7 +34,8 @@ class BaseModel:
     
 
 class HistoricalSimulation(BaseModel):
-    def __init__(self):
+    def __init__(self, alpha=99, window_size=300):
+        super().__init__(alpha=alpha, window_size=window_size)
         self.name = 'HistoricalSimulation'
 
     def fit(self, ts):
@@ -60,7 +57,8 @@ class HistoricalSimulation(BaseModel):
     
 
 class VarianceCovariance(BaseModel):
-    def __init__(self):
+    def __init__(self, alpha=99, window_size=300):
+        super().__init__(alpha=alpha, window_size=window_size)
         self.name = 'VarianceCovariance'
 
     def fit(self, ts):
@@ -80,7 +78,8 @@ class VarianceCovariance(BaseModel):
     
     
 class MonteCarlo(BaseModel):
-    def __init__(self):
+    def __init__(self, alpha=99, window_size=300):
+        super().__init__(alpha=alpha, window_size=window_size)
         self.name = 'MonteCarlo'
 
     def fit(self, ts):
@@ -108,7 +107,7 @@ class DeepARModel(BaseModel):
 
     def __init__(self, context_length=15, alpha = 99, window_size = 300,
                  epochs=5, learning_rate=1e-4, n_layers=2., dropout=0.1):
-        
+        super().__init__(alpha=alpha, window_size=window_size)
         self.name = 'DeepVaR'
         self.context_length = context_length
         self.epochs = epochs
@@ -181,3 +180,4 @@ class DeepARModel(BaseModel):
                 V[i] = weights[i] * np.percentile(predictions[i].samples[:, 0], 100-self.alpha)
         R = returns.corr()
         return -np.sqrt(V @ R @ V.T)
+    
