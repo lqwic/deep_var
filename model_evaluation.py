@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm.auto import trange
 
 from models import BaseModel
-from metrics import metrics
+from metrics import metrics, calculate_metrics_table
 
 class EvaluateModel:
     def __init__(self, model: BaseModel, data: pd.DataFrame,
@@ -88,3 +88,66 @@ class EvaluateModel:
         self.calculate_test_var(weights)
         self.plot_breakdown_graph()
         print(self.generate_metrics_table(n_samples = n_samples))
+
+
+class EvaluateMultipleModels:
+    def __init__(self, models, data, alpha=99, window_size=300, train_size=0.8):
+        self.models = models
+        self.data = data
+        self.alpha = alpha
+        self.window_size = window_size
+        self.train_size = train_size
+
+    def split_data(self):
+        split_index = int(len(self.data) * self.train_size)
+        self.train_data = self.data.iloc[:split_index]
+        self.test_data = self.data.iloc[split_index - self.window_size:]
+
+    def generate_random_weights(self):
+        num_columns = self.data.shape[1]
+        random_weights = np.random.rand(num_columns)
+        normalized_weights = random_weights / sum(random_weights)
+        return normalized_weights
+
+    def generate_random_single_asset_weight(self):
+        num_columns = self.data.shape[1]
+        weights = np.zeros(num_columns)
+        selected_asset = np.random.randint(num_columns)
+        weights[selected_asset] = 1
+        return weights
+
+    def train_models(self):
+        for model in self.models:
+            model.fit(self.train_data)
+
+    def evaluate_models(self, weights):
+        self.predictions_dict = {}
+        for model in self.models:
+            predictions = model.predict_var_rolling_window(self.test_data, weights)
+            predictions = predictions.set_index('Date')
+            predictions.index = pd.to_datetime(predictions.index)
+            self.predictions_dict[model.name] = predictions.values.flatten()
+        self.portfolio = self.test_data[self.window_size:].dot(weights)
+        portfolio = self.portfolio.values
+        self.metrics_table = calculate_metrics_table(portfolio, self.predictions_dict, self.alpha)
+
+    def plot_model_results(self):
+        plt.figure(figsize=(15, 10))
+        plt.plot(self.portfolio.index, self.portfolio.values, label=f"Actual returns", alpha=0.5)
+        for model in self.models:
+            var = self.predictions_dict[model.name]
+            plt.plot(self.portfolio.index, var, label=f"{model.name} VaR", linestyle='--')
+        plt.legend()
+        plt.title("Model Predictions vs. Actual Returns")
+        plt.show()
+
+    def get_metrics_table(self):
+        return self.metrics_table
+
+    def run_evaluation(self):
+        self.split_data()
+        self.train_models()
+        weights = self.generate_random_weights()
+        self.evaluate_models(weights)
+        self.plot_model_results()
+        print(self.get_metrics_table())
