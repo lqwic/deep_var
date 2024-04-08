@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import chi2, norm
+import pandas as pd
 
 def pof_test(
     var: np.ndarray,
@@ -187,3 +188,33 @@ def metrics(var : np.ndarray, target: np.ndarray, alpha : float = 0.99):
     metrics_dict['Firm Loss'] = firm_loss_val
 
     return metrics_dict
+
+def calculate_metrics_table(target, predictions_dict, alpha=0.99):
+    """
+    Calculate metrics table for multiple models.
+
+    Parameters:
+        target (pd.Series): Target series.
+        predictions_dict (dict): Dictionary with keys as model names and values as predicted VaRs.
+        alpha (float): VaR confidence level. Default is 0.99.
+
+    Returns:
+        pd.DataFrame: DataFrame containing metrics for each model.
+    """
+    metrics_list = [
+      'POF Test p-value',
+      'CC Test p-value',
+      'Berkowitz Test p-value',
+      'Quantile Loss',
+      'Quadratic Loss',
+      'Smooth Loss',
+      'Tick Loss',
+      'Firm Loss'
+    ]
+    metrics_table = pd.DataFrame(index=metrics_list)
+
+    for model, predictions in predictions_dict.items():
+        metrics_dict = metrics(predictions, target, alpha)
+        metrics_table[model] = metrics_dict
+
+    return metrics_table
