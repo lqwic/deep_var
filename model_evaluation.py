@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import matplotli.pyplot as plt
+import matplotlib.pyplot as plt
 from tqdm.auto import trange
 
 from models import BaseModel
