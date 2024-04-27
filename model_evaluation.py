@@ -3,13 +3,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm.auto import trange
 
-from models import BaseModel
 from metrics import metrics, calculate_metrics_table
 
 class EvaluateModel:
-    def __init__(self, model: BaseModel, data: pd.DataFrame,
+    def __init__(self, model, data: pd.DataFrame,
                  alpha = 99, window_size = 300, train_size = 0.8):
-        self.model = model(alpha = alpha, window_size = window_size)
+        self.model = model
         self.data = data
         self.alpha = alpha
         self.window_size = window_size
@@ -35,9 +34,6 @@ class EvaluateModel:
         selected_asset = np.random.randint(num_columns)
         weights[selected_asset] = 1
         return weights
-
-    def train_model(self, train):
-        self.estimator = self.model.fit(train)
 
     def calculate_test_var(self, weights):
         portfolio = self.test.dot(weights)
@@ -83,7 +79,6 @@ class EvaluateModel:
 
     def evaluate_model(self, n_samples=10):
         self.temporal_split()
-        self.train_model(self.train)
         weights = self.generate_random_weights()
         self.calculate_test_var(weights)
         self.plot_breakdown_graph()
@@ -91,17 +86,17 @@ class EvaluateModel:
 
 
 class EvaluateMultipleModels:
-    def __init__(self, models, data, alpha=99, window_size=300, train_size=0.8):
-        self.models = models
+    def __init__(self, trained_models, data, alpha=99, window_sizes=None, train_size=0.8):
+        self.trained_models = trained_models
         self.data = data
         self.alpha = alpha
-        self.window_size = window_size
+        self.window_sizes = window_sizes if window_sizes else [300] * len(trained_models)
         self.train_size = train_size
 
     def split_data(self):
         split_index = int(len(self.data) * self.train_size)
         self.train_data = self.data.iloc[:split_index]
-        self.test_data = self.data.iloc[split_index - self.window_size:]
+        self.test_data = self.data.iloc[split_index:]
 
     def generate_random_weights(self):
         num_columns = self.data.shape[1]
@@ -116,25 +111,24 @@ class EvaluateMultipleModels:
         weights[selected_asset] = 1
         return weights
 
-    def train_models(self):
-        for model in self.models:
-            model.fit(self.train_data)
-
     def evaluate_models(self, weights):
         self.predictions_dict = {}
-        for model in self.models:
-            predictions = model.predict_var_rolling_window(self.test_data, weights)
+        self.var_df = pd.DataFrame(index=self.test_data.index)
+        for model, window_size in zip(self.trained_models, self.window_sizes):
+            test_data_model = self.test_data.iloc[-window_size:]
+            predictions = model.predict_var_rolling_window(test_data_model, weights)
             predictions = predictions.set_index('Date')
             predictions.index = pd.to_datetime(predictions.index)
             self.predictions_dict[model.name] = predictions.values.flatten()
-        self.portfolio = self.test_data[self.window_size:].dot(weights)
+            self.var_df[model.name] = predictions.values.flatten()
+        self.portfolio = self.test_data[max(self.window_sizes):].dot(weights)
         portfolio = self.portfolio.values
         self.metrics_table = calculate_metrics_table(portfolio, self.predictions_dict, self.alpha)
 
     def plot_model_results(self):
         plt.figure(figsize=(15, 10))
         plt.plot(self.portfolio.index, self.portfolio.values, label=f"Actual returns", alpha=0.5)
-        for model in self.models:
+        for model in self.trained_models:
             var = self.predictions_dict[model.name]
             plt.plot(self.portfolio.index, var, label=f"{model.name} VaR", linestyle='--')
         plt.legend()
@@ -144,10 +138,13 @@ class EvaluateMultipleModels:
     def get_metrics_table(self):
         return self.metrics_table
 
+    def get_var_df(self):
+        return self.var_df
+
     def run_evaluation(self):
         self.split_data()
-        self.train_models()
         weights = self.generate_random_weights()
         self.evaluate_models(weights)
         self.plot_model_results()
         print(self.get_metrics_table())
+        
