@@ -102,20 +102,32 @@ def tick_loss(var: np.ndarray, target: np.ndarray, alpha: float = 0.99) -> float
     """
     return ((alpha - (target < var).astype(float)) * (target - var)).mean()
 
-def firm_loss(var: np.ndarray, target: np.ndarray, alpha: float = 0.99, a: float = 1.0) -> float:
+def avg_exceedances(var: np.ndarray, target: np.ndarray) -> float:
     """
-    Firm Loss imposes the opportunity cost of capital upon the firm.
+    Calculate the average number of exceedances.
 
     Parameters:
         var: Predicted VaRs.
         target: Corresponding returns.
-        alpha: Weight parameter. Default is 0.99.
-        a: Opportunity cost of capital. Default is 1.
 
     Returns:
-        Firm Loss value.
+        Average number of exceedances.
     """
-    return np.where(target < var, (target - var)**2, -a * var).mean()
+    exceedances = (target < var).sum()
+    return exceedances / len(target)
+
+def regulatory_loss(var: np.ndarray, target: np.ndarray) -> float:
+    """
+    Regulatory Loss Function penalizes exceedances with squared difference and non-exceedances with 0.
+
+    Parameters:
+        var: Predicted VaRs.
+        target: Corresponding returns.
+
+    Returns:
+        Regulatory Loss value.
+    """
+    return np.where(target < var, (var - target)**2, 0).mean()
 
 def metrics(var: np.ndarray, target: np.ndarray, alpha: float = 0.99) -> dict:
     metrics_dict = {}
@@ -126,22 +138,12 @@ def metrics(var: np.ndarray, target: np.ndarray, alpha: float = 0.99) -> dict:
     metrics_dict['Quadratic Loss'] = quadratic_loss(var, target, alpha)
     metrics_dict['Smooth Loss'] = smooth_loss(var, target, alpha)
     metrics_dict['Tick Loss'] = tick_loss(var, target, alpha)
-    metrics_dict['Firm Loss'] = firm_loss(var, target, alpha)
+    metrics_dict['Average Exceedances'] = avg_exceedances(var, target)
+    metrics_dict['Regulatory Loss'] = regulatory_loss(var, target)
 
     return metrics_dict
 
 def calculate_metrics_table(target: pd.Series, predictions_dict: dict, alpha: float = 0.99) -> pd.DataFrame:
-    """
-    Calculate metrics table for multiple models.
-
-    Parameters:
-        target: Target series.
-        predictions_dict: Dictionary with keys as model names and values as predicted VaRs.
-        alpha: VaR confidence level. Default is 0.99.
-
-    Returns:
-        DataFrame containing metrics for each model.
-    """
     metrics_list = [
         'POF Test p-value',
         'Berkowitz Test p-value',
@@ -149,7 +151,8 @@ def calculate_metrics_table(target: pd.Series, predictions_dict: dict, alpha: fl
         'Quadratic Loss',
         'Smooth Loss',
         'Tick Loss',
-        'Firm Loss'
+        'Average Exceedances',
+        'Regulatory Loss'
     ]
     metrics_table = pd.DataFrame(index=metrics_list)
 
